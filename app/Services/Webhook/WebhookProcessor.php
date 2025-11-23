@@ -45,10 +45,67 @@ class WebhookProcessor
 
 
             try {
-                DB::transaction(function () use ($parsedTransactions, $acquirer, $traceId) {
+                DB::transaction(function () use ($parsedTransactions, $acquirer, $traceId, $webhookLog) {
+                    // Bulk duplicate check - get all existing references in one query
+                    $references = array_map(fn($pt) => $pt->reference, $parsedTransactions);
+                    $existingReferences = Transaction::where('acquirer_id', $acquirer->id)
+                        ->whereIn('reference', $references)
+                        ->pluck('reference')
+                        ->flip()
+                        ->toArray();
+
+                    // Prepare bulk insert data
+                    $transactionsToInsert = [];
+                    $now = now();
+
                     foreach ($parsedTransactions as $parsedTransaction) {
-                        $this->processTransaction($parsedTransaction, $acquirer, $traceId);
+                        // Skip if duplicate
+                        if (isset($existingReferences[$parsedTransaction->reference])) {
+                            continue;
+                        }
+
+                        $currency = $parsedTransaction->amount->getCurrency() ?: $acquirer->currency;
+
+                        $transactionsToInsert[] = [
+                            'trace_id' => $traceId,
+                            'acquirer_id' => $acquirer->id,
+                            'reference' => $parsedTransaction->reference,
+                            'type' => Transaction::TYPE_CREDIT,
+                            'amount' => $parsedTransaction->amount->getAmount(),
+                            'currency' => $currency,
+                            'source' => $acquirer->identifier,
+                            'metadata' => json_encode($parsedTransaction->metadata),
+                            'transaction_date' => $parsedTransaction->date,
+                            'status' => Transaction::STATUS_COMPLETED,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
                     }
+
+                    // Bulk insert all transactions in chunks to avoid max_allowed_packet issues
+                    if (!empty($transactionsToInsert)) {
+                        // Insert in chunks of 500 to stay within packet limits
+                        foreach (array_chunk($transactionsToInsert, 500) as $chunk) {
+                            Transaction::insert($chunk);
+                        }
+                    }
+
+                    $processedCount = count($transactionsToInsert);
+                    $duplicateCount = count($parsedTransactions) - $processedCount;
+
+                    if ($duplicateCount > 0) {
+                        Log::info('Duplicate transactions detected', with_trace([
+                            'duplicate_count' => $duplicateCount,
+                            'acquirer' => $acquirer->identifier,
+                        ]));
+                    }
+
+                    Log::info('Batch transactions processed', with_trace([
+                        'total_count' => count($parsedTransactions),
+                        'processed_count' => $processedCount,
+                        'duplicate_count' => $duplicateCount,
+                        'acquirer' => $acquirer->identifier,
+                    ]));
                 });
 
                 $webhookLog->update([
@@ -87,54 +144,5 @@ class WebhookProcessor
         }
 
         return $webhookLog;
-    }
-
-    private function processTransaction(ParsedTransaction $parsedTransaction, Acquirer $acquirer, ?string $traceId = null): void
-    {
-        $existingTransaction = Transaction::where('reference', $parsedTransaction->reference)
-            ->where('acquirer_id', $acquirer->id)
-            ->first();
-
-        if ($existingTransaction) {
-            Log::info('Duplicate transaction detected, skipping', with_trace([
-                'reference' => $parsedTransaction->reference,
-                'acquirer' => $acquirer->identifier,
-            ]));
-            return;
-        }
-
-        try {
-            $currency = $parsedTransaction->amount->getCurrency() ?: $acquirer->currency;
-
-            $transaction = Transaction::create([
-                'trace_id' => $traceId,
-                'acquirer_id' => $acquirer->id,
-                'reference' => $parsedTransaction->reference,
-                'type' => Transaction::TYPE_CREDIT,
-                'amount' => $parsedTransaction->amount->getAmount(),
-                'currency' => $currency,
-                'source' => $acquirer->identifier,
-                'metadata' => $parsedTransaction->metadata,
-                'transaction_date' => $parsedTransaction->date,
-                'status' => Transaction::STATUS_COMPLETED,
-            ]);
-
-            Log::info('Transaction processed successfully', with_trace([
-                'reference' => $parsedTransaction->reference,
-                'amount' => $parsedTransaction->amount->format(),
-                'currency' => $currency,
-                'acquirer' => $acquirer->identifier,
-                'transaction_id' => $transaction->id,
-            ]));
-        } catch (\Exception $e) {
-            Log::error('Failed to process individual transaction', with_trace([
-                'reference' => $parsedTransaction->reference,
-                'acquirer' => $acquirer->identifier,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]));
-
-            throw $e;
-        }
     }
 }

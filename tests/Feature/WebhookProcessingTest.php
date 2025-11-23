@@ -119,10 +119,11 @@ describe('Webhook Processing', function () {
         expect($count)->toBe(1);
     });
 
-    test('processes large webhook with 10000 transactions with acceptable performance', function () {
+    $txns = 10000;
+    test(sprintf('processes large webhook with %d transactions with acceptable performance', $txns), function () use ($txns) {
         $processor = app(WebhookProcessor::class);
         $lines = [];
-        for ($i = 1; $i <= 10000; $i++) {
+        for ($i = 1; $i <= $txns; $i++) {
             $amount = rand(100, 100000) / 100; // Random amount between 1.00 and 1000.00
             $reference = 'PERF_TEST_' . str_pad($i, 6, '0', STR_PAD_LEFT);
             $note = 'Performance test transaction ' . $i;
@@ -140,17 +141,18 @@ describe('Webhook Processing', function () {
         $processingTime = $endTime - $startTime;
 
         expect($webhookLog->status)->toBe(WebhookLog::STATUS_COMPLETED)
-            ->and($webhookLog->transactions_count)->toBe(10000)
-            ->and($webhookLog->processed_count)->toBe(10000)
+            ->and($webhookLog->transactions_count)->toBe($txns)
+            ->and($webhookLog->processed_count)->toBe($txns)
             ->and($webhookLog->failed_count)->toBe(0)
-            ->and(Transaction::count())->toBe(10000);
+            ->and(Transaction::count())->toBe($txns);
 
 
         expect($processingTime)->toBeLessThan(10.0);
 
-        echo sprintf("\nProcessed 10000 transactions in %.2f seconds (%.2f tx/sec)\n",
+        echo sprintf("\nProcessed %d transactions in %.2f seconds (%.2f tx/sec)\n",
+            $txns,
             $processingTime,
-            10000 / $processingTime
+            $txns / $processingTime
         );
     });
 });
