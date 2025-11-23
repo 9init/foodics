@@ -47,14 +47,9 @@ class AddTraceId
         $date = now()->format('Ymd');
         $serverId = $this->getServerId();
         $cacheKey = self::CACHE_KEY_PREFIX . $date . '_' . $serverId;
-
-        // Atomic increment with 24-hour TTL (resets daily per server)
-        $counter = Cache::increment($cacheKey, 1);
-
-        if ($counter === 1) {
-            // Set expiry on first creation
-            Cache::put($cacheKey, 1, now()->endOfDay());
-        }
+        $counter = Cache::get($cacheKey, 0);
+        $counter++;
+        Cache::put($cacheKey, $counter, now()->endOfDay());
 
         // Format: TRC-20251123-A1B2C3D4-000001
         return self::TRACE_PREFIX . $date . '-' . $serverId . '-' . str_pad($counter, 6, '0', STR_PAD_LEFT);
