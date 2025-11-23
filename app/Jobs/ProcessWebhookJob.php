@@ -2,19 +2,17 @@
 
 namespace App\Jobs;
 
+use App\Services\Webhook\IngestionManager;
 use App\Services\Webhook\WebhookProcessor;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class ProcessWebhookJob implements ShouldQueue
 {
     use Queueable, InteractsWithQueue, SerializesModels;
-
-    private const INGESTION_PAUSED_KEY = 'webhook_ingestion_paused';
 
     /**
      * Create a new job instance.
@@ -28,9 +26,9 @@ class ProcessWebhookJob implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(WebhookProcessor $processor): void
+    public function handle(WebhookProcessor $processor, IngestionManager $ingestionManager): void
     {
-        if (Cache::get(self::INGESTION_PAUSED_KEY, false)) {
+        if ($ingestionManager->isPaused()) {
             Log::info('Webhook processing paused, releasing job back to queue', [
                 'acquirer_identifier' => $this->acquirerIdentifier,
             ]);

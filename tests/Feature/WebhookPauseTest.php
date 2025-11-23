@@ -2,8 +2,8 @@
 
 use App\Jobs\ProcessWebhookJob;
 use App\Models\Acquirer;
+use App\Services\Webhook\IngestionManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 
 uses(RefreshDatabase::class);
@@ -15,7 +15,8 @@ describe('Webhook Pause Mechanism', function () {
     });
 
     test('webhook jobs are queued when ingestion is active', function () {
-        Cache::forget('webhook_ingestion_paused');
+        $ingestionManager = app(IngestionManager::class);
+        $ingestionManager->resume();
 
         $response = $this->call(
             'POST',
@@ -33,7 +34,8 @@ describe('Webhook Pause Mechanism', function () {
     });
 
     test('webhook jobs are still queued when ingestion is paused', function () {
-        Cache::put('webhook_ingestion_paused', true, now()->addHours(1));
+        $ingestionManager = app(IngestionManager::class);
+        $ingestionManager->pause();
 
         $response = $this->call(
             'POST',
@@ -50,7 +52,8 @@ describe('Webhook Pause Mechanism', function () {
     });
 
     test('paused job releases itself back to queue', function () {
-        Cache::put('webhook_ingestion_paused', true, now()->addHours(1));
+        $ingestionManager = app(IngestionManager::class);
+        $ingestionManager->pause();
 
         $job = new ProcessWebhookJob(
             '20250615100,00#REF001#note/test',
@@ -69,14 +72,15 @@ describe('Webhook Pause Mechanism', function () {
         };
 
         $processor = app(\App\Services\Webhook\WebhookProcessor::class);
-        $job->handle($processor);
+        $job->handle($processor, $ingestionManager);
 
         expect($job->released)->toBeTrue()
             ->and($job->releaseDelay)->toBe(300); // 5 minutes
     });
 
     test('resumed job processes normally', function () {
-        Cache::forget('webhook_ingestion_paused');
+        $ingestionManager = app(IngestionManager::class);
+        $ingestionManager->resume();
         $job = new class('20250615100,00#REF001#note/test', 'foodics_bank') extends ProcessWebhookJob {
             public bool $released = false;
 
@@ -87,7 +91,7 @@ describe('Webhook Pause Mechanism', function () {
         };
 
         $processor = app(\App\Services\Webhook\WebhookProcessor::class);
-        $job->handle($processor);
+        $job->handle($processor, $ingestionManager);
 
         expect($job->released)->toBeFalse();
     });
@@ -99,29 +103,32 @@ describe('Webhook Pause Mechanism', function () {
                 'status' => 'success',
             ]);
 
-        expect(Cache::get('webhook_ingestion_paused'))->toBeTrue();
+        $ingestionManager = app(IngestionManager::class);
+        expect($ingestionManager->isPaused())->toBeTrue();
     });
 
     test('resume endpoint clears cache correctly', function () {
-        Cache::put('webhook_ingestion_paused', true, now()->addHours(1));
+        $ingestionManager = app(IngestionManager::class);
+        $ingestionManager->pause();
         $response = $this->postJson('/api/payments/ingestion/resume');
         $response->assertStatus(200)
             ->assertJson([
                 'status' => 'success',
             ]);
 
-        expect(Cache::has('webhook_ingestion_paused'))->toBeFalse();
+        expect($ingestionManager->isPaused())->toBeFalse();
     });
 
     test('status endpoint returns correct pause state', function () {
-        Cache::forget('webhook_ingestion_paused');
+        $ingestionManager = app(IngestionManager::class);
+        $ingestionManager->resume();
         $response = $this->getJson('/api/payments/ingestion/status');
         $response->assertJson([
             'status' => 'active',
             'paused' => false,
         ]);
 
-        Cache::put('webhook_ingestion_paused', true, now()->addHours(1));
+        $ingestionManager->pause();
 
         $response = $this->getJson('/api/payments/ingestion/status');
         $response->assertJson([
