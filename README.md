@@ -1,6 +1,6 @@
-# Foodics Pay - Online Wallet Application
+# Foodics Pay - Online Transaction Processing Application
 
-A production-ready online wallet application built with Laravel for receiving and sending money across multiple banks and currencies.
+A production-ready online transaction processing application built with Laravel for receiving and sending money across multiple banks and currencies.
 
 ## Table of Contents
 
@@ -37,6 +37,9 @@ php artisan key:generate
 # Run migrations
 php artisan migrate
 
+# Seed database (mandatory acquirers)
+php artisan db:seed --class=AcquirerSeeder
+
 # Run tests
 php artisan test
 
@@ -53,7 +56,7 @@ php artisan serve
 
 ```bash
 # Specific bank endpoint
-curl -X POST http://localhost:8000/api/webhooks/foodics_bank \
+curl -X POST http://localhost:8000/api/webhooks/foodics-bank \
   -H "Content-Type: text/plain" \
   -d "20250615156,50#202506159000001#note/payment"
 
@@ -67,10 +70,10 @@ curl -X POST http://localhost:8000/api/payments/ingestion/resume
 curl http://localhost:8000/api/payments/ingestion/status
 ```
 
-### Generating Payment XML
+### Payment Transfer
 
 ```bash
-curl -X POST http://localhost:8000/api/payments/generate-xml \
+curl -X POST http://localhost:8000/api/payments/transfer \
   -H "Content-Type: application/json" \
   -d '{
     "reference": "e0f4763d-28ea-42d4-ac1c-c4013c242105",
