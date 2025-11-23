@@ -38,6 +38,22 @@ class WebhookController extends Controller
             ], 400);
         }
 
+        $maxSize = 16 * 1024 * 1024; // 16MB in bytes same as MEDIUMTEXT limit
+        if (strlen($payload) > $maxSize) {
+            Log::warning('Webhook payload too large', with_trace([
+                'bank' => $bank,
+                'payload_size' => strlen($payload),
+                'max_size' => $maxSize,
+                'ip' => $request->ip(),
+            ]));
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Payload too large. Maximum size is 16MB',
+                'trace_id' => $traceId,
+            ], 413);
+        }
+
         // Queue the webhook for processing with bank identifier
         // Note: If ingestion is paused, the job will be held in queue and retried later
         ProcessWebhookJob::dispatch($payload, $bank, $traceId);
