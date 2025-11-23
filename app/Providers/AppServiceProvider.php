@@ -16,7 +16,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(WebhookParserFactory::class);
         $this->app->singleton(WebhookProcessor::class);
-
+        $this->app->singleton(PaymentXmlBuilder::class);
     }
 
     /**

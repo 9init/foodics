@@ -14,18 +14,15 @@ class ProcessWebhookJob implements ShouldQueue
 {
     use Queueable, InteractsWithQueue, SerializesModels;
 
-    /**
-     * Create a new job instance.
-     */
+    public $tries = 3;
+    public $backoff = [60, 120, 300];
+
     public function __construct(
         public string $payload,
         public string $acquirerIdentifier
     ) {
     }
 
-    /**
-     * Execute the job.
-     */
     public function handle(WebhookProcessor $processor, IngestionManager $ingestionManager): void
     {
         if ($ingestionManager->isPaused()) {
@@ -61,9 +58,6 @@ class ProcessWebhookJob implements ShouldQueue
         }
     }
 
-    /**
-     * Handle a job failure.
-     */
     public function failed(\Throwable $exception): void
     {
         Log::error('Webhook job failed after all retries', [

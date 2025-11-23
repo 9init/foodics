@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\IngestionController;
+use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\WebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -19,6 +20,8 @@ Route::prefix('webhooks')->group(function () {
 
 
 Route::prefix('payments')->group(function () {
+    Route::post('/transfer', [PaymentController::class, 'transfer']);
+
     Route::prefix('ingestion')->group(function () {
         // Ingestion control (should be protected in production with auth middleware)
         Route::post('/pause', [IngestionController::class, 'pauseIngestion']);
