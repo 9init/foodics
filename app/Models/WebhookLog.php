@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class WebhookLog extends Model
 {
     protected $fillable = [
+        'trace_id',
         'acquirer_id',
         'bank_identifier',
         'payload',

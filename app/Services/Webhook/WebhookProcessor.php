@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 
 class WebhookProcessor
 {
-    public function process(string $payload, string $acquirerIdentifier): WebhookLog
+    public function process(string $payload, string $acquirerIdentifier, ?string $traceId = null): WebhookLog
     {
         $webhookLog = null;
 
@@ -22,6 +22,7 @@ class WebhookProcessor
             }
 
             $webhookLog = WebhookLog::create([
+                'trace_id' => $traceId,
                 'acquirer_id' => $acquirer->id,
                 'bank_identifier' => $acquirer->identifier,
                 'payload' => $payload,
@@ -38,9 +39,9 @@ class WebhookProcessor
 
 
             try {
-                DB::transaction(function () use ($parsedTransactions, $acquirer) {
+                DB::transaction(function () use ($parsedTransactions, $acquirer, $traceId) {
                     foreach ($parsedTransactions as $parsedTransaction) {
-                        $this->processTransaction($parsedTransaction, $acquirer);
+                        $this->processTransaction($parsedTransaction, $acquirer, $traceId);
                     }
                 });
 
@@ -50,11 +51,11 @@ class WebhookProcessor
                 ]);
                 $webhookLog->markAsCompleted();
             } catch (\Exception $e) {
-                Log::error('Webhook batch processing failed', [
+                Log::error('Webhook batch processing failed', with_trace([
                     'acquirer' => $acquirer->identifier,
                     'transaction_count' => count($parsedTransactions),
                     'error' => $e->getMessage(),
-                ]);
+                ]));
 
                 $webhookLog->update([
                     'processed_count' => 0,
@@ -66,6 +67,7 @@ class WebhookProcessor
         } catch (\Exception $e) {
             if (!$webhookLog) {
                 $webhookLog = WebhookLog::create([
+                    'trace_id' => $traceId,
                     'bank_identifier' => $acquirerIdentifier ?? 'unknown',
                     'payload' => $payload,
                     'status' => WebhookLog::STATUS_FAILED,
@@ -81,17 +83,17 @@ class WebhookProcessor
         return $webhookLog;
     }
 
-    private function processTransaction(ParsedTransaction $parsedTransaction, Acquirer $acquirer): void
+    private function processTransaction(ParsedTransaction $parsedTransaction, Acquirer $acquirer, ?string $traceId = null): void
     {
         $existingTransaction = Transaction::where('reference', $parsedTransaction->reference)
             ->where('acquirer_id', $acquirer->id)
             ->first();
 
         if ($existingTransaction) {
-            Log::info('Duplicate transaction detected, skipping', [
+            Log::info('Duplicate transaction detected, skipping', with_trace([
                 'reference' => $parsedTransaction->reference,
                 'acquirer' => $acquirer->identifier,
-            ]);
+            ]));
             return;
         }
 
@@ -99,6 +101,7 @@ class WebhookProcessor
             $currency = $parsedTransaction->amount->getCurrency() ?: $acquirer->currency;
 
             $transaction = Transaction::create([
+                'trace_id' => $traceId,
                 'acquirer_id' => $acquirer->id,
                 'reference' => $parsedTransaction->reference,
                 'type' => Transaction::TYPE_CREDIT,
@@ -110,20 +113,20 @@ class WebhookProcessor
                 'status' => Transaction::STATUS_COMPLETED,
             ]);
 
-            Log::info('Transaction processed successfully', [
+            Log::info('Transaction processed successfully', with_trace([
                 'reference' => $parsedTransaction->reference,
                 'amount' => $parsedTransaction->amount->format(),
                 'currency' => $currency,
                 'acquirer' => $acquirer->identifier,
                 'transaction_id' => $transaction->id,
-            ]);
+            ]));
         } catch (\Exception $e) {
-            Log::error('Failed to process individual transaction', [
+            Log::error('Failed to process individual transaction', with_trace([
                 'reference' => $parsedTransaction->reference,
                 'acquirer' => $acquirer->identifier,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-            ]);
+            ]));
 
             throw $e;
         }

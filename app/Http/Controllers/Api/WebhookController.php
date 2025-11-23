@@ -29,6 +29,7 @@ class WebhookController extends Controller
     public function handleBank(Request $request, string $bank): JsonResponse
     {
         $payload = $request->getContent();
+        $traceId = trace_id();
 
         if (empty($payload)) {
             return response()->json([
@@ -39,18 +40,19 @@ class WebhookController extends Controller
 
         // Queue the webhook for processing with bank identifier
         // Note: If ingestion is paused, the job will be held in queue and retried later
-        ProcessWebhookJob::dispatch($payload, $bank);
+        ProcessWebhookJob::dispatch($payload, $bank, $traceId);
 
-        Log::info('Webhook received and queued', [
+        Log::info('Webhook received and queued', with_trace([
             'bank' => $bank,
             'payload_size' => strlen($payload),
             'ip' => $request->ip(),
             'paused' => $this->ingestionManager->isPaused(),
-        ]);
+        ]));
 
         return response()->json([
             'status' => 'accepted',
             'message' => 'Webhook received and queued for processing',
+            'trace_id' => $traceId,
         ], 202);
     }
 }

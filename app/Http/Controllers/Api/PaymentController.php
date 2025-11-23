@@ -11,19 +11,22 @@ class PaymentController extends Controller
 {
     public function transfer(StorePaymentRequest $request): JsonResponse
     {
+        $traceId = trace_id();
         try {
             $paymentRequest = $request->toPaymentRequest();
-            ProcessPaymentJob::dispatch($paymentRequest);
+            ProcessPaymentJob::dispatch($paymentRequest, $traceId);
 
             return response()->json([
                 'status' => 'accepted',
                 'message' => 'Payment request queued for processing',
                 'reference' => $paymentRequest->reference,
+                'trace_id' => $traceId,
             ], 202);
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
                 'message' => $e->getMessage(),
+                'trace_id' => $traceId,
             ], 400);
         }
     }
