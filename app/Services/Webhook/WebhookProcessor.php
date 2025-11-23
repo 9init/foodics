@@ -6,6 +6,7 @@ use App\Models\Acquirer;
 use App\Models\Transaction;
 use App\Models\WebhookLog;
 use App\Services\Webhook\DTO\ParsedTransaction;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -16,7 +17,12 @@ class WebhookProcessor
         $webhookLog = null;
 
         try {
-            $acquirer = Acquirer::findByIdentifier($acquirerIdentifier);
+            $acquirer = Cache::remember(
+                "acquirer:{$acquirerIdentifier}",
+                now()->addHour(),
+                fn() => Acquirer::findByIdentifier($acquirerIdentifier)
+            );
+
             if (!$acquirer) {
                 throw new \InvalidArgumentException("Acquirer '{$acquirerIdentifier}' not found or inactive");
             }

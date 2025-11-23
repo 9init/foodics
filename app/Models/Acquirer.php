@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Cache;
 
 class Acquirer extends Model
 {
@@ -28,6 +29,17 @@ class Acquirer extends Model
         'is_active' => 'boolean',
         'metadata' => 'array',
     ];
+
+    protected static function booted(): void
+    {
+        static::saved(function (Acquirer $acquirer) {
+            Cache::forget("acquirer:{$acquirer->identifier}");
+        });
+
+        static::deleted(function (Acquirer $acquirer) {
+            Cache::forget("acquirer:{$acquirer->identifier}");
+        });
+    }
 
     public function transactions(): HasMany
     {

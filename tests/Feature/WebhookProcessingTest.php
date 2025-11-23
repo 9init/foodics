@@ -118,4 +118,39 @@ describe('Webhook Processing', function () {
 
         expect($count)->toBe(1);
     });
+
+    test('processes large webhook with 10000 transactions with acceptable performance', function () {
+        $processor = app(WebhookProcessor::class);
+        $lines = [];
+        for ($i = 1; $i <= 10000; $i++) {
+            $amount = rand(100, 100000) / 100; // Random amount between 1.00 and 1000.00
+            $reference = 'PERF_TEST_' . str_pad($i, 6, '0', STR_PAD_LEFT);
+            $note = 'Performance test transaction ' . $i;
+            $lines[] = sprintf('20250615%s#%s#note/%s',
+                str_replace('.', ',', number_format($amount, 2, '.', '')),
+                $reference,
+                $note
+            );
+        }
+        $payload = implode("\n", $lines);
+
+        $startTime = microtime(true);
+        $webhookLog = $processor->process($payload, 'foodics_bank');
+        $endTime = microtime(true);
+        $processingTime = $endTime - $startTime;
+
+        expect($webhookLog->status)->toBe(WebhookLog::STATUS_COMPLETED)
+            ->and($webhookLog->transactions_count)->toBe(10000)
+            ->and($webhookLog->processed_count)->toBe(10000)
+            ->and($webhookLog->failed_count)->toBe(0)
+            ->and(Transaction::count())->toBe(10000);
+
+
+        expect($processingTime)->toBeLessThan(10.0);
+
+        echo sprintf("\nProcessed 10000 transactions in %.2f seconds (%.2f tx/sec)\n",
+            $processingTime,
+            10000 / $processingTime
+        );
+    });
 });
