@@ -23,4 +23,9 @@ interface WebhookParserInterface
      * Validate if this parser can handle the given payload
      */
     public function canHandle(string $payload): bool;
+
+    /**
+     * Get a Currency code associated with this parser
+     */
+    public function getCurrency(): string;
 }

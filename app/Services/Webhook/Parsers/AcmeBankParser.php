@@ -49,7 +49,7 @@ class AcmeBankParser implements WebhookParserInterface
         $amountString = trim($parts[0]);
         $reference = trim($parts[1]);
         $dateString = trim($parts[2]);
-        $amount = Currency::fromFloatStr($amountString, 'SAR');
+        $amount = Currency::fromFloatStr($amountString, $this->getCurrency());
 
         $date = DateTime::createFromFormat('Ymd', $dateString);
         if (!$date) {
@@ -67,6 +67,11 @@ class AcmeBankParser implements WebhookParserInterface
     public function getBankIdentifier(): string
     {
         return 'acme_bank';
+    }
+
+    public function getCurrency(): string
+    {
+        return 'USD';
     }
 
     public function canHandle(string $payload): bool

@@ -56,7 +56,7 @@ class FoodicsBankParser implements WebhookParserInterface
             throw new InvalidArgumentException("Invalid date format: {$dateString}");
         }
 
-        $amount = Currency::fromFloatStr($amountString, 'SAR');
+        $amount = Currency::fromFloatStr($amountString, $this->getCurrency());
         $reference = $parts[1];
 
         $metadata = [];
@@ -92,5 +92,10 @@ class FoodicsBankParser implements WebhookParserInterface
     {
         $firstLine = trim(explode("\n", $payload)[0] ?? '');
         return preg_match('/^\d{8}.+#.+/', $firstLine) === 1;
+    }
+
+    public function getCurrency(): string
+    {
+        return 'SAR';
     }
 }

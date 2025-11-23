@@ -9,7 +9,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Transaction extends Model
 {
     protected $fillable = [
-        'wallet_id',
         'acquirer_id',
         'reference',
         'type',
@@ -32,11 +31,6 @@ class Transaction extends Model
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_PENDING = 'pending';
     public const STATUS_FAILED = 'failed';
-
-    public function wallet(): BelongsTo
-    {
-        return $this->belongsTo(Wallet::class);
-    }
 
     public function acquirer(): BelongsTo
     {

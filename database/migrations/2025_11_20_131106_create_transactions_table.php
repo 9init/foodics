@@ -13,7 +13,6 @@ return new class extends Migration
     {
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('wallet_id')->constrained()->onDelete('cascade');
             $table->string('reference'); // Bank reference
             $table->string('type'); // credit, debit
             $table->unsignedBigInteger('amount'); // Stored in smallest unit
@@ -25,7 +24,6 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(['reference', 'source'], 'unique_transaction_per_bank');
-            $table->index(['wallet_id', 'created_at']);
             $table->index('transaction_date');
         });
     }

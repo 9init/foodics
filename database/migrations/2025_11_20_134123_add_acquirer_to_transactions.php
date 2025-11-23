@@ -12,11 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('transactions', function (Blueprint $table) {
-            $table->foreignId('acquirer_id')->nullable()->after('wallet_id')->constrained('acquirers')->onDelete('restrict');
-            $table->dropUnique('unique_transaction_per_bank');
+            $table->foreignId('acquirer_id')->nullable()->after('id')->constrained()->onDelete('restrict');
 
-            $table->unique(['reference', 'acquirer_id'], 'unique_transaction_per_acquirer');
-            $table->index('acquirer_id');
+            $table->index(['acquirer_id', 'created_at']);
         });
     }
 
@@ -26,11 +24,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('transactions', function (Blueprint $table) {
-            $table->dropUnique('unique_transaction_per_acquirer');
-            $table->unique(['reference', 'source'], 'unique_transaction_per_bank');
-
+            $table->dropIndex(['acquirer_id', 'created_at']);
             $table->dropForeign(['acquirer_id']);
-            $table->dropColumn('acquirer_id');
+            $table->dropColumn(['acquirer_id', 'currency']);
         });
     }
 };

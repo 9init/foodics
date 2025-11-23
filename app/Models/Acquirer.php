@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Webhook\WebhookParserInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -45,7 +46,7 @@ class Acquirer extends Model
             ->first();
     }
 
-    public function getParserInstance(): object
+    public function getParserInstance(): WebhookParserInterface
     {
         $parserClass = $this->parser_class;
         if (!class_exists($parserClass)) {
